@@ -32,6 +32,7 @@ INSTALLED_APPS = [
     'apps.students',
     'apps.attendance',
     'apps.payments',
+    'apps.homeworks',
     #3rd_party_apps
     'rest_framework',
     'rest_framework_simplejwt',
@@ -138,3 +139,5 @@ SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(minutes=30),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=1),
 }
+
+ISMS_API_KEY = config('ISMS_API_KEY')
