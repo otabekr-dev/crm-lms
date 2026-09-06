@@ -1,14 +1,14 @@
-from rest_framework.viewsets import ModelViewSet
+from core.views import BaseViewSet
 from .models import Attendance
 from .serializers import AttendanceSerializer
 from core.permissions import IsTeacherOrAdmin, IsAttendanceViewerOrAdmin
 from django.contrib.auth import get_user_model
 from rest_framework.exceptions import ValidationError
-
+from .tasks import send_attendance_sms
 
 User = get_user_model()
 
-class AttendanceView(ModelViewSet):
+class AttendanceView(BaseViewSet):
     queryset = Attendance.objects.all()
     serializer_class = AttendanceSerializer
 
@@ -24,7 +24,13 @@ class AttendanceView(ModelViewSet):
             if group.teacher.user != self.request.user:
                 raise ValidationError('Bu guruh sizga tegishli emas')
 
-        serializer.save()            
+        attendance = serializer.save()
+
+        if attendance.status == Attendance.StatusChoice.ABSENT:
+            send_attendance_sms.delay(
+                attendance.student.parent_phone,
+                'Farzandingiz darsga kelmadi'
+            )            
 
     def get_queryset(self):
         if self.request.user.role == User.Role.ADMIN:

@@ -46,4 +46,38 @@ class MeSerializer(serializers.ModelSerializer):
         model = User
         fields = ['id', 'username', 'first_name', 'last_name', 'role']
                 
-                
+
+class ChangePasswordSerializer(serializers.Serializer):
+    old_password = serializers.CharField(write_only=True)
+    new_password = serializers.CharField(write_only=True)                
+    confirm = serializers.CharField(write_only=True)
+
+
+    def validate(self, attrs):
+        request = self.context['request']
+        user = request.user
+
+        if not user.check_password(attrs['old_password']):
+            raise serializers.ValidationError('Incorrect password')
+
+
+        if attrs['new_password'] != attrs['confirm']:
+            raise serializers.ValidationError('Passwords are not matching')
+
+
+        if len(attrs['new_password']) < 8:
+            raise serializers.ValidationError('Password is short')
+
+        return attrs
+
+
+    def save(self, **kwargs):
+        request = self.context['request']
+        user = request.user 
+        new_password = self.validated_data['new_password']
+
+        user.set_password(new_password)
+        user.must_change_password = False
+        user.save()
+        return user
+                                  

@@ -5,7 +5,7 @@ from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.response import Response
 from rest_framework.request import Request
 from rest_framework import status
-from .serializers import RegisterSerializer, MeSerializer
+from .serializers import RegisterSerializer, MeSerializer, ChangePasswordSerializer
 from django.contrib.auth import get_user_model
 from core.permissions import IsAdmin
 
@@ -36,4 +36,16 @@ class MeView(RetrieveAPIView):
 
     def get_object(self):
         return self.request.user
-    
+
+class ChangePasswordView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request:Request) -> Response:    
+        serializer = ChangePasswordSerializer(
+            data=request.data,
+            context = {'request':request}
+        )
+
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response('Password changed successfully', status=status.HTTP_200_OK)

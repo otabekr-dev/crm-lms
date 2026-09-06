@@ -12,6 +12,7 @@ class CustomUser(AbstractUser):
         choices=Role.choices,
         default=Role.STUDENT
     )
+    must_change_password = models.BooleanField(default=True)
 
     def __str__(self):
         return f'{self.id}.{self.username}'
