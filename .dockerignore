@@ -1,0 +1,10 @@
+venv/
+.venv/
+.git/
+.env
+.env.docker
+__pycache__/
+*.pyc 
+*.pyo
+.vscode/
+*.sqlite3

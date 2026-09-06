@@ -140,4 +140,21 @@ SIMPLE_JWT = {
     "REFRESH_TOKEN_LIFETIME": timedelta(days=1),
 }
 
-ISMS_API_KEY = config('ISMS_API_KEY')
+
+REDIS_HOST = config('redis_host', default='localhost')
+
+CELERY_BROKER_URL = f'redis://{REDIS_HOST}:6379/0'
+CELERY_RESULT_BACKEND = f'redis://{REDIS_HOST}:6379/0'
+
+
+CACHES = {
+    'default':{
+        'BACKEND':'django_redis.cache.RedisCache',
+        'LOCATION':f'redis://{REDIS_HOST}:6379/1',
+        'OPTIONS':{
+            'CLIENT':'django_redis.client.DefaultClient',
+        }
+    }
+}
+
+

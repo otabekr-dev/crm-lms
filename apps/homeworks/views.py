@@ -1,4 +1,4 @@
-from rest_framework.viewsets import ModelViewSet
+from core.views import BaseViewSet
 from .serializers import HomeworkSerializer
 from core.permissions import IsHomeworkOwnerOrAdmin, IsHomeworkGroupMemberOrAdmin, IsTeacherOrAdmin
 from .models import Homework
@@ -8,7 +8,7 @@ from apps.teachers.models import Teacher
 
 User = get_user_model()
 
-class HomeworkView(ModelViewSet):
+class HomeworkView(BaseViewSet):
     queryset = Homework.objects.all()
     serializer_class = HomeworkSerializer
 
