@@ -390,7 +390,7 @@ DELETE /api/payments/{id}/
 
 **Attendance — ABSENT belgilash va Celery SMS task**
 ![Attendance](screenshots/attendance.png)
-![Celery SMS log](screenshots/attendance-celery.png)
+![Celery SMS log](screenshots/attendace-celery.png)
 
 **Payments**
 ![Payments](screenshots/payments.png)
@@ -789,7 +789,7 @@ DELETE /api/payments/{id}/
 
 **Attendance — ABSENT belgilash va Celery SMS task**
 ![Attendance](screenshots/attendance.png)
-![Celery SMS log](screenshots/attendance-celery.png)
+![Celery SMS log](screenshots/attendace-celery.png)
 
 **Payments**
 ![Payments](screenshots/payments.png)
