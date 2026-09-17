@@ -376,6 +376,28 @@ DELETE /api/payments/{id}/
 
 
 
+## Screenshots
+
+**Login**
+![Login](screenshots/login.png)
+
+**Console**
+![Console](screenshots/console.png)
+
+**Teachers ro'yxati va yangi teacher qo'shish**
+![Teachers list](screenshots/teacher-list.png)
+![Teacher register](screenshots/teacher.png)
+
+**Attendance — ABSENT belgilash va Celery SMS task**
+![Attendance](screenshots/attendance.png)
+![Celery SMS log](screenshots/attendance-celery.png)
+
+**Payments**
+![Payments](screenshots/payments.png)
+![Permission denied](screenshots/payments-permission.png)
+
+
+
 
 # CRM/LMS Backend — Education Center Management System
 
@@ -751,3 +773,24 @@ DELETE /api/payments/{id}/
 - **Combined registration endpoints** (`/teachers/register/`, `/students/register/`) create the `User` and the profile (`Teacher`/`Student`) in a single atomic request instead of two separate steps.
 - **Object-level permissions** are used throughout (e.g. a teacher can only edit their own homework; a student can only see their own attendance/payments) rather than relying on queryset filtering alone.
 - **SMS notifications are simulated, not real.** A Celery task runs on absence and logs what *would* be sent — no SMS gateway is integrated yet. This was a deliberate scope cut (an SMS provider was tried but its API was unreliable) to keep focus on the Celery/Redis mechanics rather than a third-party integration.
+
+
+
+
+**Login**
+![Login](screenshots/login.png)
+
+**Console**
+![Console](screenshots/console.png)
+
+**Teachers ro'yxati va yangi teacher qo'shish**
+![Teachers list](screenshots/teacher-list.png)
+![Teacher register](screenshots/teacher.png)
+
+**Attendance — ABSENT belgilash va Celery SMS task**
+![Attendance](screenshots/attendance.png)
+![Celery SMS log](screenshots/attendance-celery.png)
+
+**Payments**
+![Payments](screenshots/payments.png)
+![Permission denied](screenshots/payments-permission.png)

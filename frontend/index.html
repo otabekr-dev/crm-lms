@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CRM-LMS API Tester</title>
+<style>
+  :root{
+    --bg:#0f1117; --panel:#171a23; --border:#2a2e3a; --text:#e6e8ee;
+    --muted:#8a8fa3; --accent:#4f7cff; --accent-hover:#3d68e6;
+    --danger:#e5484d; --ok:#3fb950; --radius:8px;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    background:var(--bg); color:var(--text); min-height:100vh;
+  }
+  .wrap{max-width:900px; margin:0 auto; padding:20px;}
+  h2{margin:0 0 4px 0; font-size:18px;}
+  .sub{color:var(--muted); font-size:13px; margin-bottom:20px;}
+
+  .card{
+    background:var(--panel); border:1px solid var(--border); border-radius:var(--radius);
+    padding:18px; margin-bottom:18px;
+  }
+  .card h4{margin:0 0 12px 0; font-size:13px; color:var(--muted); font-weight:600; text-transform:uppercase; letter-spacing:.03em;}
+
+  .field{margin-bottom:12px;}
+  .field label{display:block; font-size:12px; color:var(--muted); margin-bottom:4px;}
+  input, select, textarea{
+    width:100%; background:#0f1117; border:1px solid var(--border); color:var(--text);
+    padding:8px 10px; border-radius:6px; font-size:13px; font-family:inherit;
+  }
+  textarea{font-family:ui-monospace,SFMono-Regular,Consolas,monospace; resize:vertical;}
+  button{
+    background:var(--accent); color:#fff; border:none; padding:9px 16px;
+    border-radius:6px; font-size:14px; cursor:pointer;
+  }
+  button:hover{background:var(--accent-hover);}
+  button.secondary{background:transparent; border:1px solid var(--border); color:var(--text);}
+  button.secondary:hover{background:#1e222d;}
+
+  .row{display:flex; gap:10px;}
+  .row .field{flex:1;}
+  .methodField{max-width:120px;}
+
+  .tokenBox{display:flex; gap:8px; align-items:center; font-size:12px; color:var(--muted); flex-wrap:wrap; margin-top:6px;}
+  .tokenBox code{background:#0a0b10; padding:3px 6px; border-radius:4px; font-size:11px; max-width:260px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:inline-block; vertical-align:middle;}
+
+  #responseBox{
+    background:#0a0b10; border:1px solid var(--border); border-radius:6px;
+    padding:12px; font-family:ui-monospace,SFMono-Regular,Consolas,monospace; font-size:12.5px;
+    white-space:pre-wrap; word-break:break-word; max-height:420px; overflow:auto; margin-top:10px;
+  }
+  #statusLine{font-size:13px; margin-top:10px; font-weight:600;}
+  #statusLine.ok{color:var(--ok);}
+  #statusLine.err{color:var(--danger);}
+
+  .presetList{display:flex; flex-wrap:wrap; gap:6px; margin-top:8px;}
+  .presetList button{
+    background:#1e222d; color:var(--muted); border:1px solid var(--border);
+    font-size:11px; padding:5px 9px; border-radius:14px;
+  }
+  .presetList button:hover{color:var(--text); border-color:var(--accent);}
+  #toast{
+    position:fixed; bottom:16px; right:16px; background:var(--panel); border:1px solid var(--border);
+    padding:10px 16px; border-radius:8px; font-size:13px; display:none; max-width:320px; white-space:pre-wrap;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h2>CRM-LMS — API Test Konsoli</h2>
+  <div class="sub">URL'ni o'zing yozasan / tanlaysan, method tanlaysan, body kiritasan — so'rov yuboriladi.</div>
+
+  <!-- API BASE + LOGIN -->
+  <div class="card" id="loginCard">
+    <h4>Ulanish</h4>
+    <div class="row">
+      <div class="field">
+        <label>API base</label>
+        <input id="apiBase" value="http://127.0.0.1:8000">
+      </div>
+    </div>
+    <div class="row">
+      <div class="field">
+        <label>Username</label>
+        <input id="loginUsername" placeholder="admin_user">
+      </div>
+      <div class="field">
+        <label>Password</label>
+        <input id="loginPassword" type="password" placeholder="••••••••">
+      </div>
+      <div class="field" style="flex:0 0 auto; align-self:flex-end;">
+        <button id="loginBtn">Login</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- LOGGED-IN BAR (login qilingandan keyin shu ko'rinadi) -->
+  <div class="card" id="sessionBar" style="display:none;">
+    <div class="tokenBox">
+      <span>✅ Login qilingan.</span>
+      <span>Access:</span> <code id="accessShow">-</code>
+      <button class="secondary" id="copyAccess" style="padding:3px 8px; font-size:11px;">Copy</button>
+      <button class="secondary" id="refreshBtn" style="padding:3px 8px; font-size:11px;">Token yangilash</button>
+      <button class="secondary" id="switchAccountBtn" style="padding:3px 8px; font-size:11px;">Boshqa akkaunt bilan kirish</button>
+    </div>
+  </div>
+
+  <!-- REQUEST BUILDER -->
+  <div class="card" id="requestCard" style="display:none;">
+    <h4>So'rov yuborish</h4>
+    <div class="row">
+      <div class="field methodField">
+        <label>Method</label>
+        <select id="method">
+          <option>GET</option>
+          <option>POST</option>
+          <option>PATCH</option>
+          <option>PUT</option>
+          <option>DELETE</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Path (API base'dan keyingi qism, masalan /api/teachers/register/)</label>
+        <input id="path" placeholder="/api/teachers/register/">
+      </div>
+    </div>
+
+    <div class="presetList" id="presetList"></div>
+
+    <div class="field" style="margin-top:12px;">
+      <label>
+        <input type="checkbox" id="useAuth" checked style="width:auto; margin-right:6px;">
+        Authorization: Bearer &lt;access&gt; qo'sh
+      </label>
+    </div>
+
+    <div class="field">
+      <label>Body (JSON, GET/DELETE uchun bo'sh qoldir)</label>
+      <textarea id="body" rows="7" placeholder='{
+  "username": "teacher_vali",
+  "first_name": "Vali",
+  "last_name": "Valiyev",
+  "subject": "Python",
+  "experience": 3
+}'></textarea>
+    </div>
+
+    <button id="sendBtn">So'rov yubor</button>
+
+    <div id="statusLine"></div>
+    <div id="responseBox">Javob shu yerda ko'rinadi...</div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+/* ============ STATE ============ */
+let ACCESS = localStorage.getItem('crm_access') || null;
+let REFRESH = localStorage.getItem('crm_refresh') || null;
+
+function apiBase(){ return document.getElementById('apiBase').value.replace(/\/$/, ''); }
+
+function toast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.display = 'block';
+  clearTimeout(window._t);
+  window._t = setTimeout(() => t.style.display = 'none', 3500);
+}
+
+function shortToken(t){
+  if(!t) return '-';
+  return t.slice(0, 18) + '...' + t.slice(-6);
+}
+
+function showLoggedInView(){
+  document.getElementById('loginCard').style.display = 'none';
+  document.getElementById('sessionBar').style.display = 'block';
+  document.getElementById('requestCard').style.display = 'block';
+  document.getElementById('accessShow').textContent = shortToken(ACCESS);
+}
+
+function showLoginView(){
+  document.getElementById('loginCard').style.display = 'block';
+  document.getElementById('sessionBar').style.display = 'none';
+  document.getElementById('requestCard').style.display = 'none';
+}
+
+/* agar oldindan token saqlangan bo'lsa, to'g'ridan-to'g'ri request oynasini ko'rsat */
+if(ACCESS){ showLoggedInView(); } else { showLoginView(); }
+
+document.getElementById('copyAccess').onclick = () => {
+  if(!ACCESS) return;
+  navigator.clipboard.writeText(ACCESS);
+  toast('Access token copy qilindi');
+};
+
+document.getElementById('switchAccountBtn').onclick = () => {
+  ACCESS = null; REFRESH = null;
+  localStorage.removeItem('crm_access');
+  localStorage.removeItem('crm_refresh');
+  document.getElementById('loginUsername').value = '';
+  document.getElementById('loginPassword').value = '';
+  showLoginView();
+};
+
+/* ============ LOGIN ============ */
+document.getElementById('loginBtn').onclick = async () => {
+  const username = document.getElementById('loginUsername').value.trim();
+  const password = document.getElementById('loginPassword').value;
+  if(!username || !password){ toast('Username va password kiriting'); return; }
+
+  try{
+    const res = await fetch(apiBase() + '/api/accounts/login/', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({username, password}),
+    });
+    const data = await res.json();
+    if(!res.ok){ toast('Login xato: ' + JSON.stringify(data)); return; }
+    ACCESS = data.access;
+    REFRESH = data.refresh;
+    localStorage.setItem('crm_access', ACCESS);
+    localStorage.setItem('crm_refresh', REFRESH);
+    showLoggedInView();
+    toast('Login muvaffaqiyatli');
+  }catch(e){
+    toast('Tarmoq xatosi: ' + e.message);
+  }
+};
+
+document.getElementById('refreshBtn').onclick = async () => {
+  if(!REFRESH){ toast('Refresh token yo\'q, avval login qil'); return; }
+  try{
+    const res = await fetch(apiBase() + '/api/accounts/login/refresh/', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({refresh: REFRESH}),
+    });
+    const data = await res.json();
+    if(!res.ok){ toast('Refresh xato: ' + JSON.stringify(data)); return; }
+    ACCESS = data.access;
+    localStorage.setItem('crm_access', ACCESS);
+    document.getElementById('accessShow').textContent = shortToken(ACCESS);
+    toast('Access token yangilandi');
+  }catch(e){
+    toast('Tarmoq xatosi: ' + e.message);
+  }
+};
+
+/* ============ PRESET PATHS (bosilganda path input'ga yoziladi, faqat qulaylik uchun — o'zing xohlagan path'ni ham yoza olasan) ============ */
+const PRESETS = [
+  ['GET',  '/api/accounts/me/'],
+  ['POST', '/api/accounts/change-password/'],
+  ['POST', '/api/teacher/register/'],
+  ['GET',  '/api/teachers/'],
+  ['POST', '/api/groups/'],
+  ['GET',  '/api/groups/'],
+  ['POST', '/api/students/register/'],
+  ['GET',  '/api/students/'],
+  ['POST', '/api/homework/'],
+  ['GET',  '/api/homework/'],
+  ['POST', '/api/attendance/'],
+  ['GET',  '/api/attendance/'],
+  ['POST', '/api/payments/'],
+  ['GET',  '/api/payments/'],
+];
+
+const presetList = document.getElementById('presetList');
+PRESETS.forEach(([method, path]) => {
+  const btn = document.createElement('button');
+  btn.textContent = method + ' ' + path;
+  btn.onclick = () => {
+    document.getElementById('method').value = method;
+    document.getElementById('path').value = path;
+  };
+  presetList.appendChild(btn);
+});
+
+/* ============ SEND REQUEST ============ */
+document.getElementById('sendBtn').onclick = async () => {
+  const method = document.getElementById('method').value;
+  let path = document.getElementById('path').value.trim();
+  if(!path.startsWith('/')) path = '/' + path;
+  const useAuth = document.getElementById('useAuth').checked;
+  const bodyText = document.getElementById('body').value.trim();
+
+  const headers = {'Content-Type': 'application/json'};
+  if(useAuth && ACCESS) headers['Authorization'] = 'Bearer ' + ACCESS;
+
+  let body = null;
+  if(bodyText && method !== 'GET' && method !== 'DELETE'){
+    try{ body = JSON.stringify(JSON.parse(bodyText)); }
+    catch(e){ toast('Body — noto\'g\'ri JSON: ' + e.message); return; }
+  }
+
+  const statusLine = document.getElementById('statusLine');
+  const responseBox = document.getElementById('responseBox');
+  statusLine.textContent = 'Yuborilmoqda...';
+  statusLine.className = '';
+
+  try{
+    const res = await fetch(apiBase() + path, {method, headers, body});
+    let data;
+    const text = await res.text();
+    try{ data = JSON.parse(text); }catch(e){ data = text; }
+
+    statusLine.textContent = res.status + ' ' + res.statusText;
+    statusLine.className = res.ok ? 'ok' : 'err';
+    responseBox.textContent = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
+  }catch(e){
+    statusLine.textContent = 'Tarmoq xatosi';
+    statusLine.className = 'err';
+    responseBox.textContent = e.message;
+  }
+};
+</script>
+</body>
+</html>
