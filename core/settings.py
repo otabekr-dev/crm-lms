@@ -153,6 +153,7 @@ CACHES = {
         'LOCATION':f'redis://{REDIS_HOST}:6379/1',
         'OPTIONS':{
             'CLIENT':'django_redis.client.DefaultClient',
+            'IGNORE_EXCEPTIONS': True,
         }
     }
 }
