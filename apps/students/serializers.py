@@ -69,5 +69,5 @@ class StudentRegisterSerializer(serializers.Serializer):
             'first_name':instance.user.first_name,
             'group':instance.group.name,
             'parent_phone':instance.parent_phone,
-            'temp_password':instance.temp_password
+            'temporary_password':instance.temp_password
         }
