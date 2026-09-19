@@ -46,7 +46,8 @@ class StudentsTestCase(APITestCase):
 
         self.group = Group.objects.create(
             name='Python',
-            teacher=self.teacher
+            teacher=self.teacher,
+            monthly_fee=500000.00
         )
 
     def test_register_student_admin_only(self):
