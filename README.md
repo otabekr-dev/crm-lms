@@ -139,7 +139,7 @@ POST /api/accounts/change-password/
 
 **Yangi o'qituvchi ro'yxatdan o'tkazish (faqat Admin)** — User va Teacher profilini birgalikda yaratadi, bir martalik vaqtinchalik parolni qaytaradi.
 ```
-POST /api/teachers/register/
+POST /api/teacher/register/
 ```
 ```json
 {
@@ -540,7 +540,7 @@ POST /api/accounts/change-password/
 
 **Register a new teacher (Admin only)** — creates the User and Teacher profile together, returns a one-time temporary password.
 ```
-POST /api/teachers/register/
+POST /api/teacher/register/
 ```
 ```json
 {
