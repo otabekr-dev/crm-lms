@@ -3,6 +3,7 @@ from .models import Group, Student
 from django.contrib.auth import get_user_model
 import secrets
 from django.db import transaction
+from core.validators import validate_uzb_numbers
 
 User = get_user_model()
 
@@ -12,6 +13,7 @@ class StudentSerializer(serializers.ModelSerializer):
         model = Student
         fields = ['id', 'user', 'group','parent_phone']
         read_only_fields = ['id', 'created_at']
+        extra_kwargs = {'paren_phone':{'validators':[validate_uzb_numbers]}}
 
     def validate_user(self, value):
         if value.role != User.Role.STUDENT:
@@ -25,6 +27,14 @@ class StudentSerializer(serializers.ModelSerializer):
             )
         return value
 
+    def validate_group(self, value):
+        request = self.context['request']
+        if request.user.role != User.Role.ADMIN:
+            raise serializers.ValidationError('Only admin can change student group')
+        return value
+
+
+    
 class GroupSerializer(serializers.ModelSerializer):
 
     class Meta:
@@ -38,8 +48,12 @@ class StudentRegisterSerializer(serializers.Serializer):
     first_name = serializers.CharField()
     last_name = serializers.CharField()        
     group = serializers.PrimaryKeyRelatedField(queryset=Group.objects.all())
-    parent_phone = serializers.CharField()
+    parent_phone = serializers.CharField(validators=[validate_uzb_numbers])
 
+    def validate_username(self, value):
+        if Student.objects.filter(user__username=value).exists():
+            raise serializers.ValidationError('Username already taken')  
+        return value  
 
     @transaction.atomic
     def create(self, validated_data):

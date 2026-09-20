@@ -5,7 +5,9 @@ from .serializers import TeacherSerializer, TeacherRegisterSerializer
 from core.permissions import IsAdmin, IsSelfTeacherOrAdmin
 from django.core.cache import cache
 from rest_framework.response import Response
+from django.contrib.auth import get_user_model
 
+User = get_user_model()
 
 class TeacherView(BaseViewSet):
     queryset = Teacher.objects.all()
@@ -15,6 +17,14 @@ class TeacherView(BaseViewSet):
         if self.action == 'create':
             return [IsAdmin()]
         return [IsSelfTeacherOrAdmin()]
+
+    def get_queryset(self):
+        if self.request.user.role == User.Role.ADMIN:
+            return Teacher.objects.all()
+        elif self.request.user.role == User.Role.TEACHER:
+            return Teacher.objects.filter(user=self.request.user)
+
+        return Teacher.objects.none()
     
 
     def list(self, request, *args, **kwargs):

@@ -2,9 +2,8 @@ from core.views import BaseViewSet
 from rest_framework.generics import CreateAPIView
 from .models import Student, Group
 from .serializers import GroupSerializer, StudentSerializer, StudentRegisterSerializer
-from core.permissions import IsAdmin, IsSelfStudentOrAdmin, IsGroupMemberOrAdmin
+from core.permissions import IsAdmin, IsSelfStudentOrAdmin, IsGroupMemberOrAdmin, IsStudentViewerOrAdmin
 from django.contrib.auth import get_user_model
-from django.core.cache import cache
 from rest_framework.response import Response
 
 User = get_user_model()
@@ -16,6 +15,8 @@ class StudentView(BaseViewSet):
     def get_permissions(self):
         if self.action == 'create':
             return [IsAdmin()]
+        elif self.action == 'retrieve':
+            return [IsStudentViewerOrAdmin()]
         return [IsSelfStudentOrAdmin()]
 
     def get_queryset(self):

@@ -44,6 +44,11 @@ class TeacherRegisterSerializer(serializers.Serializer):
 
         return attrs
 
+    def validate_username(self, value):
+        if Teacher.objects.filter(user__username=value):
+            raise serializers.ValidationError('Username already taken')
+        return value
+
     @transaction.atomic
     def create(self, validated_data):
         temp_password = secrets.token_urlsafe(8)

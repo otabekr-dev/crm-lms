@@ -10,5 +10,8 @@ class Teacher(models.Model):
     experience = models.PositiveIntegerField(default=1)
     created_at = models.DateTimeField(auto_now_add=True)
 
+    class Meta:
+        ordering = ['id']
+
     def __str__(self):
         return f'{self.id}.{self.user.first_name}'

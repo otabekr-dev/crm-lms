@@ -96,16 +96,15 @@ class IsPaymentOwnerOrAdmin(BasePermission):
             return True
 
         return obj.student.user == request.user            
-
-class MustHaveChangedPassword(BasePermission):
+   
+class IsStudentViewerOrAdmin(BasePermission):
     def has_permission(self, request, view):
-        if not request.user.is_authenticated:
+        return request.user.is_authenticated
+
+    def has_object_permission(self, request, view, obj):
+        if request.user.role == User.Role.ADMIN:
             return True
+        elif request.user.role == User.Role.TEACHER:
+            return obj.group.teacher.user == request.user
 
-        if request.path == '/api/accounts/change-password/':
-            return True
-
-        if request.user.must_change_password:
-            return False
-
-        return True        
+        return obj.user == request.user
