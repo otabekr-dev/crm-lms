@@ -7,6 +7,8 @@ class Payments(models.Model):
     month = models.DateField()
     paid_date = models.DateTimeField(auto_now_add=True)
 
+    class Meta:
+        ordering = ['id']
 
     def __str__(self):
         return f'{self.id}.{self.student.user.username}'

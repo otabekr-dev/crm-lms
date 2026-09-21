@@ -51,7 +51,7 @@ class StudentRegisterSerializer(serializers.Serializer):
     parent_phone = serializers.CharField(validators=[validate_uzb_numbers])
 
     def validate_username(self, value):
-        if Student.objects.filter(user__username=value).exists():
+        if User.objects.filter(username=value).exists():
             raise serializers.ValidationError('Username already taken')  
         return value  
 
