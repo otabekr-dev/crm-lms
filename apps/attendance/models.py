@@ -14,6 +14,9 @@ class Attendance(models.Model):
     status = models.CharField(max_length=25, choices=StatusChoice.choices)
     created_at = models.DateTimeField(auto_now_add=True)
 
+    class Meta:
+        ordering = ['id']
+
 
     def __str__(self):
         return f"{self.id}.{self.student.user.first_name} -> {self.status}"
