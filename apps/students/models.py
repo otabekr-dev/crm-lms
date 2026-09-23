@@ -10,6 +10,15 @@ class Group(models.Model):
 
     created_at = models.DateTimeField(auto_now_add=True)
 
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['teacher', 'name'],
+                name='unique_group_per_teacher'
+            )
+        ]
+        ordering = ['id']
+
     def __str__(self):
         return f'{self.id}.{self.name}'
 

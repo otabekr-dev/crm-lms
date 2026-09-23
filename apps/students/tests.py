@@ -71,7 +71,7 @@ class StudentsTestCase(APITestCase):
             monthly_fee=500000
         )
 
-        # Boshqa o'qituvchining guruhi
+
         self.group2 = Group.objects.create(
             name='C#',
             teacher=self.teacher_profile2,
@@ -260,3 +260,73 @@ class StudentsTestCase(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         self.student_profile.refresh_from_db()
         self.assertEqual(self.student_profile.parent_phone, '+998911234567')
+
+    def test_admin_can_create_group(self):
+        self.client.force_authenticate(user=self.admin)
+
+        data = {'name':'barcelona', 'teacher':self.teacher_profile.pk, 'monthly_fee':450000}
+
+        response = self.client.post(reverse('group-list'), data=data, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(Group.objects.filter(name='barcelona').exists())
+
+    def test_admin_can_edit_group(self):
+        self.client.force_authenticate(user=self.admin)
+
+        data = {
+            'name':'Python Beginner'
+        }
+
+        response = self.client.patch(reverse('group-detail', kwargs={'pk':self.group.pk}), data=data, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(Group.objects.filter(name='Python Beginner').exists())
+
+    def test_admin_can_delete_group(self):
+        self.client.force_authenticate(user=self.admin)
+
+        new_group = Group.objects.create(name='game-dev', teacher=self.teacher_profile2, monthly_fee=500000)
+
+        response = self.client.delete(reverse('group-detail', kwargs={'pk':new_group.pk}), format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(Group.objects.filter(name='game-dev').exists())
+
+    def test_group_teacher_cannot_edit_group(self):
+        self.client.force_authenticate(user=self.teacher_user)
+
+        data = {
+            'name':'AWS'
+        }
+
+        response = self.client.patch(reverse('group-detail', kwargs={'pk':self.group.pk}), data=data, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertTrue(Group.objects.filter(name='Python').exists())
+
+    def test_student_cannot_edit_group(self):
+        self.client.force_authenticate(user=self.student)
+
+        data = {
+            'name':'Linux'
+        }    
+
+        response = self.client.patch(reverse('group-detail', kwargs={'pk':self.group.pk}), data=data, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertTrue(Group.objects.filter(name='Python').exists())
+
+    def test_group_teacher_can_list_group(self):
+        self.client.force_authenticate(user=self.teacher_user)
+
+        response = self.client.get(reverse('group-list'), format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_student_can_list_enlisted_groups(self):
+        self.client.force_authenticate(user=self.student)
+
+        response = self.client.get(reverse('group-list'), format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
