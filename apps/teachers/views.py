@@ -25,29 +25,47 @@ class TeacherView(BaseViewSet):
             return Teacher.objects.filter(user=self.request.user)
 
         return Teacher.objects.none()
-    
+
+    def get_cache_key(self, request):
+        model_name = self.queryset.model.__name__
+        user_id = request.user.id
+        query_params = str(sorted(request.query_params.items()))
+
+        return f'{model_name}{user_id}_{query_params}'    
+
+    def invalidate_cache(self):
+        model_name = self.queryset.model.__name__
+        pattern = f'{model_name}*'
+        cache.delete_pattern(pattern)
+
 
     def list(self, request, *args, **kwargs):
-        data = cache.get('teacher_list')
-        if data is not None:
-            return Response(data)
-        
-        response=super().list(request, *args, **kwargs)
-        cache.set('teacher_list', response.data, timeout=300)
+        key = self.get_cache_key(request)
+        cached_key = cache.get(key)
+        if cached_key is not None:
+            return Response(cached_key)
+
+        response = super().list(request, *args, **kwargs)
+        cache.set(key, response.data, timeout=300)
+
         return response
 
     def perform_create(self, serializer):
-        serializer.save()
-        cache.delete('teacher_list')
+        super().perform_create(serializer)
+        self.invalidate_cache()
 
     def perform_update(self, serializer):
-        serializer.save()
-        cache.delete('teacher_list')
+        super().perform_update(serializer)    
+        self.invalidate_cache()
 
     def perform_destroy(self, instance):
-        instance.delete()
-        cache.delete('teacher_list')        
-
+        super().perform_destroy(instance)
+        self.invalidate_cache()
+    
 class TeacherRegisterView(CreateAPIView):
     serializer_class = TeacherRegisterSerializer
     permission_classes = [IsAdmin]
+
+    def perform_create(self, serializer):
+        super().perform_create(serializer)
+        cache.delete_pattern('Teacher*')

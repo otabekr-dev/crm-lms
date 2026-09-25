@@ -187,7 +187,8 @@ POST /api/groups/
 ```json
 {
     "name": "Python Backend - 1-guruh",
-    "teacher": 1
+    "teacher": 1,
+    "monthly_fee":450000
 }
 ```
 
