@@ -1,6 +1,7 @@
 from django.contrib.auth import get_user_model
 from django.urls import reverse
 from rest_framework import status
+from django.core.cache import cache
 from rest_framework.test import APITestCase
 
 from apps.teachers.models import Teacher
@@ -11,6 +12,9 @@ User = get_user_model()
 
 class StudentsTestCase(APITestCase):
     def setUp(self):
+
+        cache.clear()
+
         self.admin = User.objects.create_user(
             username='adminuser',
             password='adminuserpassword',
