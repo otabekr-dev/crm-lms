@@ -11,6 +11,7 @@ from django.contrib.auth import get_user_model
 from datetime import datetime
 from apps.students.models import Student
 from django_filters.rest_framework import DjangoFilterBackend
+from drf_spectacular.utils import extend_schema, OpenApiParameter
 
 User = get_user_model()
 
@@ -35,6 +36,17 @@ class PaymentsView(BaseViewSet):
 
         return Payments.objects.none()     
 
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(
+                name='month',
+                type=str,
+                location=OpenApiParameter.QUERY,
+                required=False,
+                description='YYYY-MM formatda, masalan 2026-10'
+            )
+        ]
+    )
     @action(detail=False, methods=['get'])
     def debtors(self, request:Request) -> Response:
         month_str = request.query_params.get('month')

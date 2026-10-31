@@ -5,28 +5,11 @@ from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.response import Response
 from rest_framework.request import Request
 from rest_framework import status
-from .serializers import RegisterSerializer, MeSerializer, ChangePasswordSerializer
+from .serializers import MeSerializer, ChangePasswordSerializer
 from django.contrib.auth import get_user_model
-from core.permissions import IsAdmin
+from drf_spectacular.utils import extend_schema
 
 User = get_user_model()
-
-class RegisterView(APIView):
-    permission_classes = [IsAdmin]
-    
-    def post(self, request: Request) -> Response:
-        serializer = RegisterSerializer(data=request.data)
-        if serializer.is_valid():
-            user = serializer.save()
-            return Response(
-                {
-                    'msg':"Ro'yxatdan o'tdingiz",
-                    'username':user.username,
-                    'id':user.id
-                },
-                status=status.HTTP_201_CREATED
-            )
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 class MeView(RetrieveAPIView):
     permission_classes = [IsAuthenticated]
@@ -40,6 +23,7 @@ class MeView(RetrieveAPIView):
 class ChangePasswordView(APIView):
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(request=ChangePasswordSerializer)
     def post(self, request:Request) -> Response:    
         serializer = ChangePasswordSerializer(
             data=request.data,

@@ -101,21 +101,6 @@ POST /api/accounts/login/refresh/
 }
 ```
 
-**Foydalanuvchi ro'yxatdan o'tkazish (faqat Admin)** — tanlangan rol va parol bilan to'g'ridan-to'g'ri foydalanuvchi yaratadi. Asosan ADMIN akkauntlarini yaratish uchun ishlatiladi.
-```
-POST /api/accounts/register/
-```
-```json
-{
-    "first_name": "Aziz",
-    "last_name": "Aliyev",
-    "username": "aziz_admin",
-    "password": "securepass123",
-    "confirm": "securepass123",
-    "role": "ADMIN"
-}
-```
-
 **O'z profilimni ko'rish**
 ```
 GET /api/accounts/me/
@@ -500,21 +485,6 @@ POST /api/accounts/login/refresh/
 ```json
 {
     "refresh": "<refresh_token>"
-}
-```
-
-**Register user (Admin only)** — creates a user directly with a chosen role and password. Used mainly for creating ADMIN accounts.
-```
-POST /api/accounts/register/
-```
-```json
-{
-    "first_name": "Aziz",
-    "last_name": "Aliyev",
-    "username": "aziz_admin",
-    "password": "securepass123",
-    "confirm": "securepass123",
-    "role": "ADMIN"
 }
 ```
 

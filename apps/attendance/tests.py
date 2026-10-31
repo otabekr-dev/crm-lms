@@ -6,6 +6,7 @@ from unittest.mock import patch
 from django.contrib.auth import get_user_model
 from apps.students.models import Student, Group
 from apps.teachers.models import Teacher
+from datetime import date
 
 User = get_user_model()
 
@@ -60,11 +61,13 @@ class AttendenceTestCase(APITestCase):
             status=Attendance.StatusChoice.ABSENT
         )
 
+        self.today = date.today()
+
     def test_teacher_can_post_attendance_own_group(self):
         self.client.force_authenticate(user=self.teacher_user)
 
         data = {
-            'student':self.student.pk, 'group':self.group.pk, 'date':'2026-09-22',
+            'student':self.student.pk, 'group':self.group.pk, 'date':self.today,
             'status':Attendance.StatusChoice.PRESENT
         }
 
@@ -117,7 +120,7 @@ class AttendenceTestCase(APITestCase):
         self.client.force_authenticate(user=self.admin)
 
         data = {
-            'student':self.student2.pk, 'group':self.group2.pk, 'date':'2026-09-21',
+            'student':self.student2.pk, 'group':self.group2.pk, 'date':self.today,
             'status':Attendance.StatusChoice.ABSENT
         }
 
@@ -131,7 +134,7 @@ class AttendenceTestCase(APITestCase):
         self.client.force_authenticate(user=self.admin)
 
         data = {
-            'student':self.student.pk, 'group':self.group.pk, 'date':'2026-09-20',
+            'student':self.student.pk, 'group':self.group.pk, 'date':self.today,
             'status':Attendance.StatusChoice.PRESENT
         }
 
@@ -176,12 +179,12 @@ class AttendenceTestCase(APITestCase):
         self.client.force_authenticate(user=self.teacher_user)
 
         data = {
-            'date':'2026-09-18'
+            'date': self.today
         }    
 
         response = self.client.patch(reverse('attendance-detail', kwargs={'pk':self.attendance.pk}), data=data, format='json')
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertTrue(Attendance.objects.filter(pk=self.attendance.pk, date='2026-09-18').exists())
+        self.assertTrue(Attendance.objects.filter(pk=self.attendance.pk, date=self.today).exists())
 
             

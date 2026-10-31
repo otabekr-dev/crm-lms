@@ -36,39 +36,6 @@ class AuthenticationTestCase(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
         self.assertNotIn('access', response.data)
 
-    def test_register_only_admin(self):
-        self.client.force_authenticate(user=self.admin)
-
-        data = {
-            "first_name": "Aziz",
-            "last_name": "Aliyev",
-            "username": "aziz_user",
-            "password": "securepass123",
-            "confirm": "securepass123",
-            "role": "TEACHER",
-        }
-
-        response = self.client.post(reverse('register'), data=data, format='json')
-
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(User.objects.filter(username='aziz_user').count(), 1)
-
-    def test_cannot_register(self):
-        self.client.force_authenticate(user=self.teacher)
-
-        data = {
-            "first_name": "Aziz",
-            "last_name": "Aliyev",
-            "username": "azizbek_user",
-            "password": "securepass123",
-            "confirm": "securepass123",
-            "role": "TEACHER",
-        }
-
-        response = self.client.post(reverse('register'), data=data, format='json')
-
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-        self.assertEqual(User.objects.filter(username='azizbek_user').count(), 0)
 
     def test_must_change_password_blocks_other_endpoints(self):
         self.client.force_authenticate(user=self.unchanged_password_user)
