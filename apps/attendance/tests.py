@@ -124,7 +124,8 @@ class AttendenceTestCase(APITestCase):
             'status':Attendance.StatusChoice.ABSENT
         }
 
-        response = self.client.post(reverse('attendance-list'), data=data, format='json')
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(reverse('attendance-list'), data=data, format='json')
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         mock_task.assert_called_once()
@@ -138,7 +139,8 @@ class AttendenceTestCase(APITestCase):
             'status':Attendance.StatusChoice.PRESENT
         }
 
-        response = self.client.post(reverse('attendance-list'), data=data, format='json')
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(reverse('attendance-list'), data=data, format='json')
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         mock_task.assert_not_called()

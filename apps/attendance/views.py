@@ -1,3 +1,7 @@
+import logging
+from django.db import transaction
+from kombu.exceptions import OperationalError
+from redis.exceptions import ConnectionError as RedisConnectionError
 from core.views import BaseViewSet
 from .models import Attendance
 from .serializers import AttendanceSerializer
@@ -7,6 +11,8 @@ from rest_framework.exceptions import ValidationError
 from .tasks import send_attendance_sms
 
 User = get_user_model()
+
+logger = logging.getLogger(__name__)
 
 class AttendanceView(BaseViewSet):
     queryset = Attendance.objects.all()
@@ -27,11 +33,16 @@ class AttendanceView(BaseViewSet):
         attendance = serializer.save()
 
         if attendance.status == Attendance.StatusChoice.ABSENT:
-            send_attendance_sms.delay(
-                attendance.student.parent_phone,
-                'Farzandingiz darsga kelmadi'
-            )            
+            phone = attendance.student.parent_phone
 
+            def send_sms():
+                try:
+                    send_attendance_sms.delay(phone, 'Farzandingiz darsga kelmadi')
+                except (OperationalError, RedisConnectionError, RuntimeError):
+                    logger.error('SMS task yuborilmadi Redis ishlamayabdi')
+
+            transaction.on_commit(send_sms)
+            
     def get_queryset(self):
         if self.request.user.role == User.Role.ADMIN:
             return Attendance.objects.all()
