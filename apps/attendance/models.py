@@ -1,6 +1,7 @@
 from django.db import models
 from apps.students.models import Student
 from apps.students.models import Group
+from django.db.models import UniqueConstraint
 
 class Attendance(models.Model):
     class StatusChoice(models.TextChoices):
@@ -16,6 +17,9 @@ class Attendance(models.Model):
 
     class Meta:
         ordering = ['id']
+        constraints = [
+            UniqueConstraint(fields=['student', 'group', 'date'], name='unique_attendance_per_day',)
+        ]
 
 
     def __str__(self):

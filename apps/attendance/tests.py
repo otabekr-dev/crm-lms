@@ -1,5 +1,6 @@
 from rest_framework.test import APITestCase
 from django.urls import reverse
+from django.db import transaction, IntegrityError
 from rest_framework import status
 from .models import Attendance
 from unittest.mock import patch
@@ -189,4 +190,49 @@ class AttendenceTestCase(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertTrue(Attendance.objects.filter(pk=self.attendance.pk, date=self.today).exists())
 
-            
+    def test_duplicate_returns_400(self):
+        self.client.force_authenticate(user=self.admin)
+
+        Attendance.objects.create(student=self.student, group=self.group, date=self.today, status=Attendance.StatusChoice.PRESENT)
+        
+        data = {
+            'student':self.student.pk, 'group':self.group.pk, 
+            'date':self.today, 'status': Attendance.StatusChoice.PRESENT
+        }
+
+        response = self.client.post(reverse('attendance-list'), data=data, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        
+
+    def test_duplicate_attendance_violates_constraint(self):
+        Attendance.objects.create(student=self.student, group=self.group, date=self.today, status=Attendance.StatusChoice.PRESENT)
+
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                Attendance.objects.create(
+                    student=self.student,
+                    group=self.group,
+                    date=self.today,
+                    status=Attendance.StatusChoice.PRESENT
+                )
+
+        self.assertEqual(Attendance.objects.filter(student=self.student.pk, date=self.today).count(), 1)
+
+    @patch('apps.attendance.views.send_attendance_sms.delay')
+    @patch('rest_framework.serializers.ModelSerializer.save', side_effect=IntegrityError)
+    def test_integrity_error_returns_400_no_sms(self, mock_save, mock_task):
+        self.client.force_authenticate(user=self.admin)
+
+        data = {
+            'student':self.student.pk,
+            'group':self.group.pk,
+            'date':self.today,
+            'status':Attendance.StatusChoice.ABSENT
+        }
+
+        response = self.client.post(reverse('attendance-list'), data=data, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(Attendance.objects.filter(student=self.student.pk, date=self.today).count(), 0)
+        mock_task.assert_not_called()

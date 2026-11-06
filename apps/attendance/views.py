@@ -1,5 +1,5 @@
 import logging
-from django.db import transaction
+from django.db import transaction, IntegrityError
 from kombu.exceptions import OperationalError
 from redis.exceptions import ConnectionError as RedisConnectionError
 from core.views import BaseViewSet
@@ -30,7 +30,14 @@ class AttendanceView(BaseViewSet):
             if group.teacher.user != self.request.user:
                 raise ValidationError('Bu guruh sizga tegishli emas')
 
-        attendance = serializer.save()
+        try:
+            with transaction.atomic():
+                attendance = serializer.save()
+        except IntegrityError:
+            raise ValidationError(
+                "Bu o'quvchi uchun shu kunga davomat belgilangan"
+            )
+
 
         if attendance.status == Attendance.StatusChoice.ABSENT:
             phone = attendance.student.parent_phone
@@ -42,7 +49,7 @@ class AttendanceView(BaseViewSet):
                     logger.error('SMS task yuborilmadi Redis ishlamayabdi')
 
             transaction.on_commit(send_sms)
-            
+
     def get_queryset(self):
         if self.request.user.role == User.Role.ADMIN:
             return Attendance.objects.all()
