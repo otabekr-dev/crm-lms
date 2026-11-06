@@ -1,5 +1,3 @@
-version: '3.9'
-
 services:
   db:
     image: postgres:16
@@ -9,7 +7,8 @@ services:
       POSTGRES_PASSWORD: ${db_pass}
     ports:
       - '5432:5432'
-
+    volumes:
+      - postgres:/var/lib/postgresql/data
   redis:
     image: redis:latest
     ports:
@@ -36,3 +35,6 @@ services:
       - redis
     env_file:
       - .env.docker
+
+volumes:
+  postgres:
