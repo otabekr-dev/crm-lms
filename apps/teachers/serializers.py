@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from .models import Teacher
 from django.contrib.auth import get_user_model
-from django.db import transaction
+from django.db import transaction, IntegrityError
 import secrets
 
 User = get_user_model()
@@ -45,29 +45,33 @@ class TeacherRegisterSerializer(serializers.Serializer):
         return attrs
 
     def validate_username(self, value):
-        if Teacher.objects.filter(user__username=value):
+        if User.objects.filter(username=value):
             raise serializers.ValidationError('Username already taken')
         return value
 
-    @transaction.atomic
+
     def create(self, validated_data):
         temp_password = secrets.token_urlsafe(8)
-        user = User.objects.create_user(
-            username=validated_data['username'],
-            password=temp_password,
-            first_name=validated_data['first_name'],
-            last_name=validated_data['last_name'],
-            role=User.Role.TEACHER
-        )
 
-        teacher = Teacher.objects.create(
-            user=user,
-            subject=validated_data['subject'],
-            experience=validated_data.get('experience')
-        )
+        try:
+            with transaction.atomic():
+                user = User.objects.create_user(
+                    username=validated_data['username'],
+                    password=temp_password,
+                    first_name=validated_data['first_name'],
+                    last_name=validated_data['last_name'],
+                    role=User.Role.TEACHER
+                )
 
-        teacher.temp_password=temp_password
-        
+                teacher = Teacher.objects.create(
+                    user=user,
+                    subject=validated_data['subject'],
+                    experience=validated_data['experience']
+                )
+        except IntegrityError:
+            raise serializers.ValidationError('Could not register. Please try again')
+
+        teacher.temp_password = temp_password
         return teacher
 
     def to_representation(self, instance):
@@ -75,7 +79,8 @@ class TeacherRegisterSerializer(serializers.Serializer):
             'id':instance.id,
             'username':instance.user.username,
             'first_name':instance.user.first_name,
+            'last_name':instance.user.last_name,
             'subject':instance.subject,
             'experience':instance.experience,
-            'temporary_password':instance.temp_password
+            'temporary_password':instance.temp_password,
         }

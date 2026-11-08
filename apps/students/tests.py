@@ -3,6 +3,8 @@ from django.urls import reverse
 from rest_framework import status
 from django.core.cache import cache
 from rest_framework.test import APITestCase
+from django.db import IntegrityError
+from unittest.mock import patch
 
 from apps.teachers.models import Teacher
 from .models import Student, Group
@@ -334,3 +336,27 @@ class StudentsTestCase(APITestCase):
         response = self.client.get(reverse('group-list'), format='json')
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_register_integrity_error_returns_400_and_nothing_saved(self):
+        self.client.force_authenticate(user=self.admin)
+
+        data = {
+            'username':'new_stud',
+            'first_name':'Ali',
+            'last_name':'Valiyev',
+            'group':self.group.pk,
+            'parent_phone':'+998997775522'
+        }
+        before = Student.objects.count()
+
+        with patch.object(Student.objects, 'create', side_effect=IntegrityError):
+            response = self.client.post(
+                reverse('student-register'), data=data, format='json'
+            )
+
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(User.objects.filter(username='new_stud').count(), 0)
+        self.assertEqual(Student.objects.count(), before)
+        self.assertNotIn('temporary_password', response.data)
+        

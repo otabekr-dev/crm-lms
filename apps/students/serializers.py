@@ -2,7 +2,7 @@ from rest_framework import serializers
 from .models import Group, Student
 from django.contrib.auth import get_user_model
 import secrets
-from django.db import transaction
+from django.db import transaction, IntegrityError
 from core.validators import validate_uzb_numbers
 
 User = get_user_model()
@@ -55,25 +55,27 @@ class StudentRegisterSerializer(serializers.Serializer):
             raise serializers.ValidationError('Username already taken')  
         return value  
 
-    @transaction.atomic
     def create(self, validated_data):
         temp_password = secrets.token_urlsafe(8)
-        user = User.objects.create_user(
-            username=validated_data['username'],
-            password=temp_password,
-            first_name=validated_data['first_name'],
-            last_name=validated_data['last_name'],
-            role=User.Role.STUDENT
-        )
+        try:
+            with transaction.atomic():
+                user = User.objects.create_user(
+                    username=validated_data['username'],
+                    password=temp_password,
+                    first_name=validated_data['first_name'],
+                    last_name=validated_data['last_name'],
+                    role=User.Role.STUDENT,
+                )
 
-        student = Student.objects.create(
-            user=user,
-            group=validated_data['group'],
-            parent_phone=validated_data['parent_phone']
-        )
+                student = Student.objects.create(
+                    user=user,
+                    group=validated_data['group'],
+                    parent_phone=validated_data['parent_phone']
+                )
+        except IntegrityError:
+            raise serializers.ValidationError('Could not register. Please try again')
 
         student.temp_password = temp_password
-
         return student
 
     def to_representation(self, instance):
