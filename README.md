@@ -1,6 +1,12 @@
+# CRM/LMS Backend
+
+[O'zbekcha](#ozbekcha) | [English](#english)
+
+<a id="ozbekcha"></a>
+
 # CRM/LMS Backend — O'quv Markazi Boshqaruv Tizimi
 
-O'quv markazlarini boshqarish uchun backend tizim: o'qituvchilar, o'quvchilar, guruhlar, uy vazifalari, davomat (simulyatsiya qilingan SMS xabarnoma bilan) va to'lovlar. Django REST Framework, rolga asoslangan ruxsatlar, Celery/Redis asosida qurilgan va to'liq Docker orqali konteynerlashtirilgan.
+O'quv markazlarini boshqarish uchun backend tizim: o'qituvchilar, o'quvchilar, guruhlar, uy vazifalari, davomat (simulyatsiya qilingan SMS xabarnoma bilan) va to'lovlar. Django REST Framework, rolga asoslangan ruxsatlar, Celery/Redis asosida qurilgan, bir vaqtdagi so'rovlardan (race condition) himoyalangan, testlar bilan qoplangan va to'liq Docker orqali konteynerlashtirilgan.
 
 ## Texnologiyalar
 
@@ -9,6 +15,7 @@ O'quv markazlarini boshqarish uchun backend tizim: o'qituvchilar, o'quvchilar, g
 - **Autentifikatsiya:** JWT (SimpleJWT)
 - **Fon vazifalari:** Celery + Redis
 - **Kesh:** Redis (django-redis)
+- **Testlar:** pytest, pytest-django
 - **Konteynerlashtirish:** Docker, docker-compose
 
 ## Rollar
@@ -21,10 +28,10 @@ O'quv markazlarini boshqarish uchun backend tizim: o'qituvchilar, o'quvchilar, g
 |---|---|
 | `accounts` | Autentifikatsiya (JWT), foydalanuvchi rollari, parolni o'zgartirish |
 | `teachers` | O'qituvchi profillari, bitta so'rovda ro'yxatdan o'tkazish |
-| `students` | Guruhlar, o'quvchi profillari, bitta so'rovda ro'yxatdan o'tkazish |
+| `students` | Guruhlar (oylik narxi bilan), o'quvchi profillari, bitta so'rovda ro'yxatdan o'tkazish |
 | `homework` | O'qituvchi tomonidan guruhga beriladigan uy vazifalari |
 | `attendance` | Kunlik davomat + kelmagan holatda simulyatsiya qilingan SMS vazifasi (Celery, hali real gateway ulanmagan) |
-| `payments` | Har bir o'quvchining to'lov yozuvlari |
+| `payments` | O'quvchilarning oylik to'lovlari (bo'lib to'lash mumkin), qarzdorlar ro'yxati |
 
 ## Ruxsatlar Jadvali
 
@@ -35,7 +42,17 @@ O'quv markazlarini boshqarish uchun backend tizim: o'qituvchilar, o'quvchilar, g
 | Student | Faqat Admin | O'zi yoki Admin | O'zi yoki Admin |
 | Homework | O'qituvchi (o'z guruhiga) yoki Admin | Admin, guruh o'qituvchisi, guruh o'quvchilari | Homework egasi (o'qituvchi) yoki Admin |
 | Attendance | O'qituvchi (o'z guruhiga) yoki Admin | Admin, guruh o'qituvchisi, faqat o'zining yozuvi (student) | Admin, guruh o'qituvchisi |
-| Payment | Faqat Admin | Admin yoki faqat o'zi (student) | Faqat Admin |
+| Payment | Faqat Admin | Admin hammasini; student faqat o'zinikini; o'qituvchi bo'sh ro'yxat ko'radi | Faqat Admin |
+
+## Bir Vaqtdagi So'rovlardan Himoya (Race Condition)
+
+Ikki so'rov bir vaqtda kelsa, tizim buzilmasligi uchun har bir xavfli joyda baza darajasida himoya qo'yilgan:
+
+- **Davomat.** `student + group + date` uchun `UniqueConstraint` (bazaning o'zi takrorni rad etadi). Ikki so'rov aynan bir vaqtda kelsa, baza birini o'tkazadi, ikkinchisidagi `IntegrityError` ushlanib, 500 o'rniga 400 qaytariladi. SMS vazifasi `transaction.on_commit` bilan, ya'ni yozuv bazaga rostdan saqlangandan keyingina yuboriladi. Shuning uchun takroriy so'rovda ota-onaga ikkinchi SMS ketmaydi. Tahrirlashda (PATCH) ham xuddi shu: SMS faqat status `ABSENT` ga **o'zgarganda** ketadi.
+- **To'lovlar.** Bo'lib to'lash mumkin, shuning uchun oddiy unique qoida yetmaydi. `transaction.atomic` ichida o'quvchining qatori `select_for_update` bilan qulflanadi (ikkinchi so'rov kutib turadi), keyin shu oy uchun to'langan jami summa hisoblanib, guruhning `monthly_fee` si bilan solishtiriladi. Tahrirlashda (PATCH) tahrirlanayotgan to'lovning o'zi hisobdan chiqarib tashlanadi, aks holda u ikki marta sanalardi.
+- **Ro'yxatdan o'tkazish.** `User` va profil `transaction.atomic` ichida yaratiladi: yo ikkalasi saqlanadi, yo hech biri. Bir vaqtda kelgan bir xil `username` so'rovida `IntegrityError` ushlanadi va 500 chiqmaydi.
+
+Bularning hammasi testlar bilan tekshirilgan (mock yordamida `IntegrityError` tashlatib, "hech narsa saqlanmadi va SMS ketmadi" holati ham sinalgan).
 
 ## Loyihani Ishga Tushirish
 
@@ -66,6 +83,14 @@ celery -A core worker --pool=solo -l info
 
 - `.env` — local (venv) ishga tushirish uchun, `DB_HOST=localhost`, `redis_host=localhost`
 - `.env.docker` — docker-compose uchun, `DB_HOST=db`, `redis_host=redis`
+
+## Testlarni Ishga Tushirish
+
+```bash
+pytest
+```
+
+Faqat bitta app uchun: `pytest apps/payments/tests.py`. Test qamrovini ko'rish uchun: `pytest --cov`.
 
 ---
 
@@ -165,7 +190,7 @@ DELETE /api/teachers/{id}/
 
 ### Groups (Guruhlar)
 
-**Guruh yaratish (faqat Admin)**
+**Guruh yaratish (faqat Admin)** — `monthly_fee` guruhning oylik narxi, to'lovlar limiti shunga qarab tekshiriladi.
 ```
 POST /api/groups/
 ```
@@ -173,7 +198,7 @@ POST /api/groups/
 {
     "name": "Python Backend - 1-guruh",
     "teacher": 1,
-    "monthly_fee":450000
+    "monthly_fee": 450000
 }
 ```
 
@@ -251,7 +276,7 @@ O'qituvchi sifatida:
     "group": 1,
     "title": "Django ORM mashqlari",
     "description": "1-5 masalalarni yeching",
-    "deadline": "2026-09-15T23:59:00Z"
+    "deadline": "2026-12-15T23:59:00Z"
 }
 ```
 
@@ -262,7 +287,7 @@ Admin sifatida:
     "teacher": 1,
     "title": "Django ORM mashqlari",
     "description": "1-5 masalalarni yeching",
-    "deadline": "2026-09-15T23:59:00Z"
+    "deadline": "2026-12-15T23:59:00Z"
 }
 ```
 
@@ -294,11 +319,11 @@ POST /api/attendance/
 {
     "student": 1,
     "group": 1,
-    "date": "2026-09-06",
+    "date": "2026-11-06",
     "status": "ABSENT"
 }
 ```
-Status variantlari: `PRESENT`, `ABSENT`, `LATE`. Sana, oxirgi 7 kun ichida bo'lishi va kelajakda bo'lmasligi kerak.
+Status variantlari: `PRESENT`, `ABSENT`, `LATE`. Sana oxirgi 7 kun ichida bo'lishi va kelajakda bo'lmasligi kerak (misoldagi sanani bugungi kunga yaqin sanaga almashtiring). Bir o'quvchi, bir guruh, bir kun uchun faqat bitta yozuv bo'lishi mumkin, takroriy so'rov 400 qaytaradi.
 
 **Davomat ro'yxati** (admin, guruh o'qituvchisi, yoki o'quvchining o'zi — faqat o'z yozuvlari)
 ```
@@ -315,25 +340,26 @@ GET /api/attendance/{id}/
 PATCH /api/attendance/{id}/
 DELETE /api/attendance/{id}/
 ```
+Tahrirlashda `status` yuborilsa, u hozirgisidan farq qilishi kerak (bir xil bo'lsa 400). O'qituvchi yozuvni boshqa o'qituvchining guruhiga ko'chira olmaydi. SMS faqat status `ABSENT` ga o'zgarganda ketadi.
 
 ---
 
 ### Payments (To'lovlar)
 
-**To'lov kiritish (faqat Admin)**
+**To'lov kiritish (faqat Admin)** — bo'lib to'lash mumkin: bir oy uchun bir nechta to'lov kiritsa bo'ladi, lekin jami summa guruhning `monthly_fee` sidan oshmasligi kerak (oshsa 400 va qolgan summa xabarda ko'rsatiladi).
 ```
 POST /api/payments/
 ```
 ```json
 {
     "student": 1,
-    "amount": 500000,
-    "month": "2026-09-01"
+    "amount": 200000,
+    "month": "2026-11-01"
 }
 ```
 `amount` 0 dan katta bo'lishi kerak. `month` bugungi kundan 2 oydan ortiq orqada bo'lmasligi kerak.
 
-**To'lovlar ro'yxati** (admin hammasini ko'radi; student faqat o'zinikini; o'qituvchilar kira olmaydi)
+**To'lovlar ro'yxati** (admin hammasini ko'radi; student faqat o'zinikini; o'qituvchi bo'sh ro'yxat oladi)
 ```
 GET /api/payments/
 ```
@@ -343,10 +369,15 @@ GET /api/payments/
 GET /api/payments/{id}/
 ```
 
-**To'lovni tahrirlash / o'chirish (faqat Admin)**
+**To'lovni tahrirlash / o'chirish (faqat Admin)** — summani oshirganda ham oylik limit tekshiriladi.
 ```
 PATCH /api/payments/{id}/
 DELETE /api/payments/{id}/
+```
+
+**Qarzdorlar ro'yxati (faqat Admin)** — tanlangan oy uchun to'liq to'lamaganlar.
+```
+GET /api/payments/debtors/?month=2026-11
 ```
 
 ---
@@ -355,11 +386,10 @@ DELETE /api/payments/{id}/
 
 - **Ochiq ro'yxatdan o'tish yo'q.** Bu, o'quv markazining haqiqiy ishlash tartibiga mos — administrator akkauntlarni yaratadi, xuddi dasturchining o'zi o'qigan kurs markazi qanday login/parol berganidek.
 - **Vaqtinchalik parol tizimi.** Admin hech qachon foydalanuvchining haqiqiy parolini bilmaydi yoki o'rnatmaydi. Tasodifiy parol generatsiya qilinib, bir marta ko'rsatiladi; foydalanuvchi o'z parolini o'rnatmaguncha, `/change-password/`dan tashqari hech qanday endpoint'ga kira olmaydi.
-- **Birlashtirilgan ro'yxatdan o'tkazish endpointlari** (`/teachers/register/`, `/students/register/`) — `User` va profilni (`Teacher`/`Student`) ikkita alohida qadam o'rniga, bitta atomik so'rovda yaratadi.
+- **Birlashtirilgan ro'yxatdan o'tkazish endpointlari** (`/api/teacher/register/`, `/api/students/register/`) — `User` va profilni (`Teacher`/`Student`) ikkita alohida qadam o'rniga, bitta atomik so'rovda yaratadi.
 - **Object-level ruxsatlar** butun loyihada qo'llanilgan (masalan, o'qituvchi faqat o'zining uy vazifasini tahrirlay oladi; o'quvchi faqat o'zining davomati/to'lovlarini ko'ra oladi) — faqat queryset filtrlashga tayanmasdan.
+- **Ikki qavatli himoya.** Oddiy xatolar serializer'dagi tekshiruvda tez ushlanadi (masalan, takroriy davomat yoki limitdan oshgan to'lov). Haqiqiy himoya esa bazada: unique qoida va qator qulfi. Chunki ikki so'rov bir vaqtda kelsa, ikkalasi ham oldindan tekshiruvdan o'tib ketishi mumkin.
 - **SMS xabarnomalari simulyatsiya qilingan, real emas.** Kelmagan holatda Celery vazifasi ishga tushib, "yuborilishi kerak bo'lgan" xabarni log qiladi — hali hech qanday SMS gateway ulanmagan. Bu — ataylab qilingan qaror (bitta SMS provayderi sinab ko'rilgan, lekin uning API'si ishonchsiz chiqqan), maqsad — uchinchi tomon integratsiyasi emas, Celery/Redis mexanikasiga e'tibor qaratish edi.
-
-
 
 
 ## Screenshots
@@ -382,12 +412,13 @@ DELETE /api/payments/{id}/
 ![Payments](screenshots/payments.png)
 ![Permission denied](screenshots/payments-permission.png)
 
+---
 
-
+<a id="english"></a>
 
 # CRM/LMS Backend — Education Center Management System
 
-A backend system for managing a private education center: teachers, students, groups, homework, attendance (with a simulated SMS notification task), and payments. Built with Django REST Framework, role-based permissions, Celery/Redis, and fully containerized with Docker.
+A backend system for managing a private education center: teachers, students, groups, homework, attendance (with a simulated SMS notification task), and payments. Built with Django REST Framework, role-based permissions, Celery/Redis, protected against concurrent-request race conditions, covered by tests, and fully containerized with Docker.
 
 ## Tech Stack
 
@@ -396,6 +427,7 @@ A backend system for managing a private education center: teachers, students, gr
 - **Auth:** JWT (SimpleJWT)
 - **Async tasks:** Celery + Redis
 - **Caching:** Redis (django-redis)
+- **Testing:** pytest, pytest-django
 - **Containerization:** Docker, docker-compose
 
 ## Roles
@@ -408,10 +440,10 @@ Three roles exist on a single `CustomUser` model: **ADMIN**, **TEACHER**, **STUD
 |---|---|
 | `accounts` | Auth (JWT), user roles, change-password flow |
 | `teachers` | Teacher profiles, combined teacher registration |
-| `students` | Groups, Student profiles, combined student registration |
+| `students` | Groups (with a monthly fee), Student profiles, combined student registration |
 | `homework` | Homework assigned by teachers to groups |
 | `attendance` | Daily attendance tracking + simulated SMS task on absence (Celery, no real gateway yet) |
-| `payments` | Payment records per student |
+| `payments` | Monthly payment records per student (partial payments allowed), debtors list |
 
 ## Permissions Summary
 
@@ -422,7 +454,17 @@ Three roles exist on a single `CustomUser` model: **ADMIN**, **TEACHER**, **STUD
 | Student | Admin only | Self or Admin | Self or Admin |
 | Homework | Teacher (own group) or Admin | Admin, group's teacher, group's students | Homework owner (teacher) or Admin |
 | Attendance | Teacher (own group) or Admin | Admin, group's teacher, the student themself | Admin, group's teacher |
-| Payment | Admin only | Admin or the student themself | Admin only |
+| Payment | Admin only | Admin sees all; a student sees only their own; a teacher gets an empty list | Admin only |
+
+## Concurrency Safety (Race Conditions)
+
+If two requests arrive at the same moment, each risky endpoint is protected at the database level:
+
+- **Attendance.** A `UniqueConstraint` on `student + group + date` makes the database itself reject duplicates. When two requests race, the database lets one through and the other raises `IntegrityError`, which is caught and turned into a 400 instead of a 500. The SMS task is dispatched with `transaction.on_commit`, so it fires only after the record is truly saved, and a duplicate request never sends a second SMS. The same holds for updates (PATCH): the SMS is sent only when the status **changes** to `ABSENT`.
+- **Payments.** Partial payments are allowed, so a plain unique constraint is not enough. Inside `transaction.atomic`, the student's row is locked with `select_for_update` (a second request waits), then the total paid for that month is calculated and compared with the group's `monthly_fee`. On update (PATCH), the payment being edited is excluded from the total, otherwise it would be counted twice.
+- **Registration.** The `User` and the profile are created inside `transaction.atomic`: either both are saved or neither. If two requests with the same `username` race, `IntegrityError` is caught and no 500 is returned.
+
+All of this is covered by tests, including mocked `IntegrityError` cases that verify "nothing was saved and no SMS was sent".
 
 ## Running the Project
 
@@ -453,6 +495,14 @@ celery -A core worker --pool=solo -l info
 
 - `.env` — used for local (venv) runs, `DB_HOST=localhost`, `redis_host=localhost`
 - `.env.docker` — used by docker-compose, `DB_HOST=db`, `redis_host=redis`
+
+## Running the Tests
+
+```bash
+pytest
+```
+
+A single app: `pytest apps/payments/tests.py`. With coverage: `pytest --cov`.
 
 ---
 
@@ -552,14 +602,15 @@ DELETE /api/teachers/{id}/
 
 ### Groups
 
-**Create group (Admin only)**
+**Create group (Admin only)** — `monthly_fee` is the group's monthly price; the payment limit is checked against it.
 ```
 POST /api/groups/
 ```
 ```json
 {
     "name": "Python Backend - Group 1",
-    "teacher": 1
+    "teacher": 1,
+    "monthly_fee": 450000
 }
 ```
 
@@ -637,7 +688,7 @@ As a Teacher:
     "group": 1,
     "title": "Django ORM Exercises",
     "description": "Complete exercises 1-5",
-    "deadline": "2026-09-15T23:59:00Z"
+    "deadline": "2026-12-15T23:59:00Z"
 }
 ```
 
@@ -648,7 +699,7 @@ As Admin:
     "teacher": 1,
     "title": "Django ORM Exercises",
     "description": "Complete exercises 1-5",
-    "deadline": "2026-09-15T23:59:00Z"
+    "deadline": "2026-12-15T23:59:00Z"
 }
 ```
 
@@ -680,11 +731,11 @@ POST /api/attendance/
 {
     "student": 1,
     "group": 1,
-    "date": "2026-09-06",
+    "date": "2026-11-06",
     "status": "ABSENT"
 }
 ```
-Status options: `PRESENT`, `ABSENT`, `LATE`. Date must be within the last 7 days and not in the future.
+Status options: `PRESENT`, `ABSENT`, `LATE`. Date must be within the last 7 days and not in the future (change the example date to one close to today). Only one record is allowed per student, group and day; a duplicate request returns 400.
 
 **List attendance** (admin, group's teacher, or the student themself — only their own records)
 ```
@@ -701,25 +752,26 @@ GET /api/attendance/{id}/
 PATCH /api/attendance/{id}/
 DELETE /api/attendance/{id}/
 ```
+When `status` is sent in an update, it must differ from the current one (otherwise 400). A teacher cannot move a record to another teacher's group. The SMS is sent only when the status changes to `ABSENT`.
 
 ---
 
 ### Payments
 
-**Record a payment (Admin only)**
+**Record a payment (Admin only)** — partial payments are allowed: you can record several payments for one month, but the total must not exceed the group's `monthly_fee` (otherwise 400, and the remaining amount is shown in the message).
 ```
 POST /api/payments/
 ```
 ```json
 {
     "student": 1,
-    "amount": 500000,
-    "month": "2026-09-01"
+    "amount": 200000,
+    "month": "2026-11-01"
 }
 ```
 `amount` must be greater than 0. `month` cannot be more than 2 months in the past.
 
-**List payments** (admin sees all; student sees only their own; teachers cannot access)
+**List payments** (admin sees all; student sees only their own; a teacher gets an empty list)
 ```
 GET /api/payments/
 ```
@@ -729,10 +781,15 @@ GET /api/payments/
 GET /api/payments/{id}/
 ```
 
-**Update / Delete payment (Admin only)**
+**Update / Delete payment (Admin only)** — the monthly limit is enforced on updates too.
 ```
 PATCH /api/payments/{id}/
 DELETE /api/payments/{id}/
+```
+
+**Debtors list (Admin only)** — students who have not paid in full for the chosen month.
+```
+GET /api/payments/debtors/?month=2026-11
 ```
 
 ---
@@ -741,12 +798,12 @@ DELETE /api/payments/{id}/
 
 - **No self-registration.** Matches how the education center actually onboards people — admin creates accounts, similar to how the developer's own course provider issued credentials.
 - **Temporary password flow.** Admin never sets or knows a user's real password. A random password is generated and shown once; the user is locked out of every endpoint except `/change-password/` until they set their own.
-- **Combined registration endpoints** (`/teachers/register/`, `/students/register/`) create the `User` and the profile (`Teacher`/`Student`) in a single atomic request instead of two separate steps.
+- **Combined registration endpoints** (`/api/teacher/register/`, `/api/students/register/`) create the `User` and the profile (`Teacher`/`Student`) in a single atomic request instead of two separate steps.
 - **Object-level permissions** are used throughout (e.g. a teacher can only edit their own homework; a student can only see their own attendance/payments) rather than relying on queryset filtering alone.
+- **Two layers of protection.** Common mistakes are caught early in serializer validation (e.g. a duplicate attendance or a payment over the limit). The real guarantee lives in the database: unique constraints and row locks. This is because two simultaneous requests can both pass the early validation.
 - **SMS notifications are simulated, not real.** A Celery task runs on absence and logs what *would* be sent — no SMS gateway is integrated yet. This was a deliberate scope cut (an SMS provider was tried but its API was unreliable) to keep focus on the Celery/Redis mechanics rather than a third-party integration.
 
-
-
+## Screenshots
 
 **Login**
 ![Login](screenshots/login.png)
@@ -754,11 +811,11 @@ DELETE /api/payments/{id}/
 **Console**
 ![Console](screenshots/console.png)
 
-**Teachers ro'yxati va yangi teacher qo'shish**
+**Teachers list and registering a new teacher**
 ![Teachers list](screenshots/teacher-list.png)
 ![Teacher register](screenshots/teacher.png)
 
-**Attendance — ABSENT belgilash va Celery SMS task**
+**Attendance — marking ABSENT and the Celery SMS task**
 ![Attendance](screenshots/attendance.png)
 ![Celery SMS log](screenshots/attendace-celery.png)
 
