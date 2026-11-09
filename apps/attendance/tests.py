@@ -236,3 +236,103 @@ class AttendenceTestCase(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(Attendance.objects.filter(student=self.student.pk, date=self.today).count(), 0)
         mock_task.assert_not_called()
+
+    @patch('apps.attendance.views.send_attendance_sms.delay')
+    def test_patch_to_absent_triggers_sms(self, mock_task):
+        self.client.force_authenticate(user=self.admin)
+
+        attendance = Attendance.objects.create(
+            student=self.student,
+            group=self.group,
+            date=self.today,
+            status=Attendance.StatusChoice.PRESENT
+        )
+
+        data = {
+            'status':Attendance.StatusChoice.ABSENT
+        }
+
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.patch(
+                reverse('attendance-detail', kwargs={'pk':attendance.pk}), 
+                data=data, format='json'
+            )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        attendance.refresh_from_db()
+        self.assertEqual(attendance.status, Attendance.StatusChoice.ABSENT)
+        mock_task.assert_called_once()
+
+    @patch('apps.attendance.views.send_attendance_sms.delay')
+    def test_patch_absent_to_late_does_not_trigger_sms(self, mock_task):
+        self.client.force_authenticate(user=self.admin)
+
+        attendance = Attendance.objects.create(
+            student=self.student,
+            group=self.group,
+            date=self.today,
+            status=Attendance.StatusChoice.ABSENT
+        )
+
+        data ={
+            'status':Attendance.StatusChoice.LATE
+        }
+
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.patch(
+                reverse('attendance-detail', kwargs={'pk':attendance.pk}),
+                data=data, format='json'
+            )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        attendance.refresh_from_db()
+        self.assertEqual(attendance.status, Attendance.StatusChoice.LATE)
+        mock_task.assert_not_called()
+
+    def test_patch_same_status_return_400(self):
+        self.client.force_authenticate(user=self.admin)
+
+        attendance = Attendance.objects.create(
+            student=self.student,
+            group=self.group,
+            date=self.today,
+            status=Attendance.StatusChoice.ABSENT
+        )
+
+        data ={
+            'status':Attendance.StatusChoice.ABSENT
+        }
+
+        response = self.client.patch(
+            reverse('attendance-detail', kwargs={'pk':attendance.pk}),
+            data=data, format='json'
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    @patch('apps.attendance.views.send_attendance_sms.delay')
+    @patch('rest_framework.serializers.ModelSerializer.save', side_effect=IntegrityError)
+    def test_patch_integrity_error_returns_400_no_sms(self, mock_save, mock_task):
+        self.client.force_authenticate(user=self.admin)
+
+        attendance = Attendance.objects.create(
+            student=self.student,
+            group=self.group,
+            date=self.today,
+            status=Attendance.StatusChoice.PRESENT
+        )
+
+        data ={
+            'status':Attendance.StatusChoice.ABSENT
+        }
+        
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.patch(
+                reverse('attendance-detail', kwargs={'pk':attendance.pk}), 
+                data=data, format='json'
+            )
+
+        attendance.refresh_from_db()
+        self.assertEqual(attendance.status, Attendance.StatusChoice.PRESENT)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        mock_task.assert_not_called()

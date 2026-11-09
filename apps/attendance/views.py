@@ -50,6 +50,34 @@ class AttendanceView(BaseViewSet):
 
             transaction.on_commit(send_sms)
 
+    def perform_update(self, serializer):
+        instance = serializer.instance
+        old_status = instance.status
+
+        if self.request.user.role == User.Role.TEACHER:
+            group = serializer.validated_data.get('group', instance.group)
+            if group.teacher.user != self.request.user:
+                raise ValidationError('Bu guruh sizga tegishli emas')
+
+        try:
+            with transaction.atomic():
+                attendance = serializer.save()
+        except IntegrityError:
+            raise ValidationError('Bu o\'quvchi uchun shu kunga davomat belgilangan')
+
+
+        if (old_status != Attendance.StatusChoice.ABSENT and attendance.status == Attendance.StatusChoice.ABSENT):
+            phone = attendance.student.parent_phone
+
+            def send_sms():
+                try:
+                    send_attendance_sms.delay(phone, 'Farzandingiz darsga kelmadi')
+                except (OperationalError, RedisConnectionError, RuntimeError):
+                    logger.error('SMS task yuborilmadi, Redis ishlamayabdi')
+
+            transaction.on_commit(send_sms)
+        
+
     def get_queryset(self):
         if self.request.user.role == User.Role.ADMIN:
             return Attendance.objects.all()

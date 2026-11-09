@@ -19,4 +19,10 @@ class AttendanceSerializer(serializers.ModelSerializer):
         if value < date.today() - timedelta(days=7):
             raise serializers.ValidationError("Juda eski sana")
         return value
-            
+
+    def validate(self, attrs):
+        if self.instance and 'status' in attrs:
+            if attrs['status'] == self.instance.status:
+                raise serializers.ValidationError('Status allaqachon shunday, o\'zgartirish shart emas')
+
+        return attrs
